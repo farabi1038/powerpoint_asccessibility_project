@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    command: >
+      sh -c "ollama serve & sleep 5 && ollama pull llava && ollama run llava"
+
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+
+volumes:
+  ollama_data: 
