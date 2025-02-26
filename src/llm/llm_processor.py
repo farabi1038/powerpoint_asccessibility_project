@@ -10,7 +10,7 @@ class LLMProcessor:
         self.model_name = model_name
         self.tokenizer = None
         self.model = None
-        self._load_model()
+        # self._load_model()
 
     def _load_model(self):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)

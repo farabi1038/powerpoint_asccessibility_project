@@ -1,23 +1,93 @@
 # src/web/app.py
+
+##############################################
+# 1) Monkey-Patch Streamlit Watcher (Important)
+##############################################
+"""
+Disables Streamlit's file-watching mechanism, which causes
+errors when scanning PyTorch's 'torch.classes'.
+"""
+try:
+    import streamlit.web.cli as stcli
+    from streamlit.watcher import local_sources_watcher
+    # Override the register_watcher method with a no-op
+    # local_sources_watcher._file_watcher._register_watcher = lambda *args, **kwargs: None
+except ImportError:
+    pass
+
+################################################
+# 2) Now Import Streamlit and Other Dependencies
+################################################
 import streamlit as st
-from io import BytesIO
 import os
+import sys
 import base64
+from io import BytesIO
+from pathlib import Path
 
-# Comment out actual processing imports
-# from src.llm.llm_processor import LLMProcessor
-# from src.scoring.wcag_scorer import WCAGScorer
+# Optionally suppress PyTorch warnings
+import warnings
+import torch
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    # Attempt to set torch.classes._path to avoid reflection calls
+    if not hasattr(torch, 'classes') or not hasattr(torch.classes, '_path'):
+        torch.classes._path = []
 
-# Get the absolute path to the static directory
+# Add the project root to Python path using pathlib for better path handling
+project_root = str(Path(__file__).parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+###############################################
+# 3) Import Your Local Modules (After Patching)
+###############################################
+try:
+    from src.llm.llm_processor import LLMProcessor
+    from src.scoring.wcag_scorer import WCAGScorer
+except ImportError as e:
+    st.error(f"Failed to import required modules: {e}")
+    st.stop()
+
+###############################################
+# 4) Streamlit Page Config
+###############################################
+st.set_page_config(
+    page_title="PPT Accessibility Analyzer & Fixer (WCAG 2.1)", 
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://www.example.com/help',
+        'Report a bug': "https://www.example.com/bug",
+        'About': "PowerPoint Accessibility Analyzer v1.0"
+    }
+)
+
+################################################
+# 5) Path to Static Directory
+################################################
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 print('STATIC_DIR', STATIC_DIR)
 
+################################################
+# 6) Initialize Session State for LLM and Scorer
+################################################
+if 'processors_initialized' not in st.session_state:
+    st.session_state.llm_processor = LLMProcessor()
+    st.session_state.wcag_scorer = WCAGScorer(st.session_state.llm_processor)
+    st.session_state.processors_initialized = True
+
+###############################################
+# 7) Utility: Convert Images to Base64
+###############################################
 def load_image_as_base64(image_path):
     """Load an image file and convert it to base64."""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode()
 
-# Load images
+###############################################
+# 8) Attempt to Load Images (Fallback if Fails)
+###############################################
 try:
     wcag_logo = load_image_as_base64(os.path.join(STATIC_DIR, "images", "wcag-logo.png"))
     upload_icon = load_image_as_base64(os.path.join(STATIC_DIR, "images", "upload-icon.png"))
@@ -40,19 +110,9 @@ except Exception as e:
     """
     hero_image = ""
 
-# Increase maximum upload size (in MB)
-st.set_page_config(
-    page_title="PPT Accessibility Analyzer & Fixer (WCAG 2.1)", 
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://www.example.com/help',
-        'Report a bug': "https://www.example.com/bug",
-        'About': "PowerPoint Accessibility Analyzer v1.0"
-    }
-)
-
-# Enhanced modern React-like styling with more animations
+###############################################
+# 9) Inject Custom CSS / Styling
+###############################################
 st.markdown("""
     <style>
     /* Modern clean background */
@@ -358,9 +418,11 @@ st.markdown("""
     }
     
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# Modern sidebar with enhanced animation
+###############################################
+# 10) Sidebar Layout
+###############################################
 with st.sidebar:
     st.markdown(f"""
         <div class='modern-card slide-in'>
@@ -376,7 +438,9 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
 
-# Animated main content
+###############################################
+# 11) Main Header / Hero
+###############################################
 st.markdown("""
     <div class='fade-in-up'>
         <h1 style='color: #2E7D32; font-size: 2.5em; margin-bottom: 30px;'>
@@ -385,8 +449,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Enhanced feature showcase
-st.markdown("""
+st.markdown(f"""
     <div class='feature-box fade-in-up' style='animation-delay: 0.2s;'>
         <h3 style='color: #2E7D32; margin-top: 0;'>Transform Your Presentations</h3>
         <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 25px;'>
@@ -406,7 +469,9 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Create a persistent upload container
+###############################################
+# 12) File Uploader & Analysis Logic
+###############################################
 upload_container = st.container()
 
 with upload_container:
@@ -462,145 +527,46 @@ with upload_container:
                 # Show a loading state while processing
                 with st.spinner("🔍 Analyzing your presentation..."):
                     try:
-                        # Mock data
-                        original_score = 45
-                        enhanced_score = 75
-                        improvement = enhanced_score - original_score
-                        
+                        # Use the scorers from session state
+                        presentation, score, issues = st.session_state.wcag_scorer.analyze_presentation(uploaded_file)
+
                         # Score comparison display
                         st.markdown("""
                             <div class='score-comparison fade-in-up'>
                                 <div class='score-card'>
-                                    <div class='score-label'>Original Score</div>
-                                    <div class='score-value' style='color: #ff4444;'>{}/100</div>
-                                    <div style='color: #666;'>Needs Improvement</div>
-                                </div>
-                                
-                                <div class='score-card'>
-                                    <div class='score-label'>Enhanced Score</div>
+                                    <div class='score-label'>Accessibility Score</div>
                                     <div class='score-value' style='color: #4CAF50;'>{}/100</div>
-                                    <div class='improvement-badge'>+{} Points Improvement</div>
                                 </div>
                             </div>
-                        """.format(original_score, enhanced_score, improvement), unsafe_allow_html=True)
+                        """.format(score), unsafe_allow_html=True)
                         
                         # Progress visualization
-                        col1, col2 = st.columns(2)
+                        st.markdown("### Accessibility Score")
+                        st.progress(score/100)
                         
-                        with col1:
-                            st.markdown("### Before Enhancement")
-                            st.progress(original_score/100)
-                            
-                        with col2:
-                            st.markdown("### After Enhancement")
-                            st.progress(enhanced_score/100)
+                        # Display issues
+                        if issues:
+                            with st.expander("📋 Detailed Analysis", expanded=True):
+                                for issue in issues:
+                                    st.markdown(f"""
+                                        <div class='issue-item'>
+                                            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                                <strong>{issue}</strong>
+                                            </div>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                        else:
+                            st.success("No accessibility issues found!")
+
+                        # Save and offer download
+                        output = BytesIO()
+                        presentation.save(output)
+                        output.seek(0)
                         
-                        # Detailed improvements breakdown
-                        st.markdown("""
-                            <div class='modern-card fade-in-up'>
-                                <h3 style='color: #2E7D32; margin-top: 0;'>Improvement Breakdown</h3>
-                                <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 15px;'>
-                                    <div class='metric-card'>
-                                        <div class='score-label'>Accessibility</div>
-                                        <div style='color: #4CAF50;'>+20%</div>
-                                    </div>
-                                    <div class='metric-card'>
-                                        <div class='score-label'>Alt Text Coverage</div>
-                                        <div style='color: #4CAF50;'>+35%</div>
-                                    </div>
-                                    <div class='metric-card'>
-                                        <div class='score-label'>Structure</div>
-                                        <div style='color: #4CAF50;'>+25%</div>
-                                    </div>
-                                    <div class='metric-card'>
-                                        <div class='score-label'>Content Quality</div>
-                                        <div style='color: #4CAF50;'>+15%</div>
-                                    </div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Mock data
-                        score = 75
-                        issues = [
-                            {"slide": 3, "type": "Title", "severity": "High", "fix": "Added missing title 'Project Timeline'"},
-                            {"slide": 5, "type": "Image", "severity": "Medium", "fix": "Generated alt text for image 'Team meeting discussion'"},
-                            {"slide": 7, "type": "Table", "severity": "High", "fix": "Added header row descriptions"},
-                            {"slide": 10, "type": "Content", "severity": "Low", "fix": "Enhanced content structure"}
-                        ]
-                        
-                        # Modern results display
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("""
-                                <div class='metric-card'>
-                                <h2 style='color: #2E7D32; font-size: 2.5em; margin: 0;'>
-                                    Accessibility Score
-                                </h2>
-                                <div style='font-size: 3em; font-weight: bold; color: #4CAF50; margin: 20px 0;'>
-                                    {}/100
-                                </div>
-                            """.format(score), unsafe_allow_html=True)
-                            st.progress(score/100)
-                            
-                        with col2:
-                            st.markdown("""
-                                <div class='metric-card' style='height: 100%;'>
-                                <h3 style='color: #2E7D32; margin-bottom: 20px;'>Status</h3>
-                            """, unsafe_allow_html=True)
-                            if score >= 90:
-                                st.success("🌟 Excellent accessibility!")
-                            elif score >= 70:
-                                st.warning("📈 Good, but room for improvement")
-                            else:
-                                st.error("⚠️ Needs significant improvements")
-                        
-                        # Modern issues display
-                        with st.expander("📋 Detailed Analysis", expanded=True):
-                            for issue in issues:
-                                severity_color = {
-                                    "High": "#ff4444",
-                                    "Medium": "#ffbb33",
-                                    "Low": "#00C851"
-                                }
-                                st.markdown(f"""
-                                    <div class='issue-item'>
-                                    <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                        <strong>Slide {issue['slide']}</strong>
-                                        <span style='color: {severity_color[issue['severity']]}; font-size: 0.9em;'>
-                                            {issue['severity']} Priority
-                                        </span>
-                                    </div>
-                                    <div style='color: #666; margin-top: 5px;'>{issue['type']}</div>
-                                    <div style='margin-top: 8px;'>✅ {issue['fix']}</div>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                        
-                        # Modern statistics
-                        st.subheader("📊 Analysis Overview")
-                        cols = st.columns(3)
-                        metrics = [
-                            {"value": "12", "label": "Slides Analyzed"},
-                            {"value": "4", "label": "Issues Fixed"},
-                            {"value": "6", "label": "Images Processed"}
-                        ]
-                        
-                        for col, metric in zip(cols, metrics):
-                            with col:
-                                st.markdown(f"""
-                                    <div class='metric-card'>
-                                    <h3 style='color: #2E7D32; font-size: 2em; margin: 0;'>{metric['value']}</h3>
-                                    <p style='color: #666; margin: 10px 0 0 0;'>{metric['label']}</p>
-                                    </div>
-                                """, unsafe_allow_html=True)
-                        
-                        # Modern download button
-                        st.markdown("<div style='padding: 30px 0;'>", unsafe_allow_html=True)
                         st.download_button(
-                            label="⬇️ Download Enhanced Presentation",
-                            data=uploaded_file,
-                            file_name="enhanced_presentation.pptx",
+                            label="⬇️ Download Analyzed Presentation",
+                            data=output,
+                            file_name="analyzed_presentation.pptx",
                             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
                         )
                     except Exception as e:
