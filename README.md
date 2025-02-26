@@ -56,30 +56,21 @@ powerpoint_accessibility_project/
 ├── requirements.txt        # Dependencies
 ├── Dockerfile              # Docker configuration
 ├── docker-compose.yml      # Docker Compose config
-├── core/                   # Core functionality
-│   ├── __init__.py
-│   ├── ppt_processor.py    # PowerPoint processing logic
-│   ├── analysis.py         # Accessibility analysis
-│   └── scoring.py          # Scoring algorithms
-├── ai/                     # AI components
-│   ├── __init__.py
-│   ├── alt_text_generator.py  # Image alt text generator
-│   ├── text_simplifier.py     # Text simplification
-│   └── chat_assistant.py      # Accessibility assistant
-├── ui/                     # User interface
-│   ├── __init__.py
-│   ├── ui.py               # UI components and layouts
-│   └── state.py            # State management
-├── enhancement/            # Enhancement functionality
-│   ├── __init__.py
-│   ├── enhancement.py      # Enhancement processing
-│   └── accessibility_checker.py  # Checking and fixing
-├── utils/                  # Utility functions
-│   ├── __init__.py
-│   └── utils.py            # Helpers and utilities
-└── launchers/              # Launch scripts
-    ├── launcher.bat        # Windows launcher
-    └── launcher.sh         # Linux/Mac launcher
+├── launcher.bat            # Windows launcher
+├── launcher.sh             # Linux/Mac launcher
+├── src/                    # Source code directory
+│   ├── accessibility_checker.py  # Checking and fixing accessibility
+│   ├── analysis.py               # Accessibility analysis
+│   ├── enhancement.py            # Enhancement processing
+│   ├── ppt_processor.py          # PowerPoint processing logic
+│   ├── state.py                  # State management
+│   ├── ui.py                     # UI components and layouts
+│   ├── alt_text_generator.py      # Image alt text generator
+│   ├── chat_assistant.py          # Accessibility assistant
+│   ├── scoring.py                 # Scoring algorithms
+│   ├── text_simplifier.py         # Text simplification
+│   ├── utils.py                   # Helpers and utilities
+│   └── images/                    # Image assets
 ```
 
 ## 🔧 Troubleshooting
