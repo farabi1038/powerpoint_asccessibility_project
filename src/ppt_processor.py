@@ -15,6 +15,7 @@ import tempfile
 from PIL import Image
 import io
 import shutil
+from pptx.dml.color import RGBColor
 
 class PPTProcessor:
     def __init__(self):
@@ -268,35 +269,221 @@ class PPTProcessor:
             pass
         return None
     
-    def update_alt_text(self, slide_num, shape, new_alt_text):
-        """Update the alt text for an image"""
+    def update_alt_text(self, slide_idx, shape, alt_text):
+        """Update the alt text for a shape"""
         try:
-            # The correct way to set alt text in python-pptx
-            if hasattr(shape, 'alt_text'):
-                # Use the proper API
-                shape.alt_text.text = new_alt_text
+            # Get the non-visual properties
+            nvprops = shape.element.xpath('.//p:cNvPr')
+            if nvprops:
+                # Set the description attribute
+                nvprops[0].set('descr', alt_text)
                 return True
-            else:
-                # For older versions of python-pptx or special shapes
-                try:
-                    # Try direct XML manipulation as fallback
-                    shape._element.xpath('.//p:cNvPr')[0].set('descr', new_alt_text)
-                    return True
-                except:
-                    print(f"Could not set alt text via XML for slide {slide_num+1}")
-                    return False
+            return False
         except Exception as e:
             print(f"Error updating alt text: {e}")
             return False
     
-    def update_font_size(self, shape, new_size):
-        """Update the font size of a text shape"""
+    def add_visible_caption(self, slide_idx, shape, caption_text, is_single_image=False):
+        """
+        Add a visible caption text box below an image
+        
+        Args:
+            slide_idx: Index of the slide
+            shape: The image shape object
+            caption_text: Text for the caption
+            is_single_image: Whether this is the only image on the slide
+        """
         try:
-            if shape.has_text_frame:
-                for paragraph in shape.text_frame.paragraphs:
-                    for run in paragraph.runs:
-                        run.font.size = Pt(new_size)
-                return True
+            # Get the slide
+            slide = self.presentation.slides[slide_idx]
+            
+            # Special handling for single images on a slide - ensure they get proper captions
+            if is_single_image:
+                print(f"Using single image placement strategy for slide {slide_idx+1}")
+                
+                # For single images, always try to put the caption directly below first
+                left = shape.left
+                top = shape.top + shape.height + Inches(0.05)
+                width = shape.width
+                
+                # Handle edge case where image is at bottom of slide
+                slide_height = self.presentation.slide_height
+                if top + Inches(0.75) > slide_height:
+                    # If too close to bottom, put caption above the image
+                    top = max(0, shape.top - Inches(0.8))
+                    
+                    # If also too close to top, put beside it
+                    if top < Inches(0.1):
+                        if shape.left > self.presentation.slide_width / 2:
+                            # Image on right, put caption on left
+                            left = max(0, shape.left - shape.width - Inches(0.1))
+                        else:
+                            # Image on left, put caption on right
+                            left = min(self.presentation.slide_width - shape.width, 
+                                     shape.left + shape.width + Inches(0.1))
+                        top = shape.top
+            else:
+                # For multiple images, use the original smart placement logic
+                # Calculate available space below the image
+                slide_height = self.presentation.slide_height
+                available_space = slide_height - (shape.top + shape.height)
+                
+                # Check if there's enough space below the image
+                if available_space < Inches(0.85):  # Need at least this much space
+                    # Put caption beside the image instead of below it if there's not enough space
+                    if shape.left > self.presentation.slide_width / 2:
+                        # Image is on the right side of the slide, put caption on the left
+                        left = max(0, shape.left - shape.width - Inches(0.1))
+                        top = shape.top
+                        width = shape.width
+                        if left < 0:  # Not enough space on left either
+                            # Put it above the image as a last resort
+                            left = shape.left
+                            top = max(0, shape.top - Inches(0.85))
+                            width = shape.width
+                    else:
+                        # Image is on the left side, put caption on the right
+                        left = shape.left + shape.width + Inches(0.1)
+                        top = shape.top
+                        width = min(shape.width, self.presentation.slide_width - left - Inches(0.1))
+                        if left + width > self.presentation.slide_width:  # Not enough space on right
+                            # Put it above the image as a last resort
+                            left = shape.left
+                            top = max(0, shape.top - Inches(0.85))
+                            width = shape.width
+                else:
+                    # Enough space below the image, place it there
+                    left = shape.left
+                    top = shape.top + shape.height + Inches(0.05)
+                    width = shape.width
+            
+            # Ensure the width is reasonable and not off the slide
+            if width < Inches(1):
+                width = Inches(1)
+            if width > self.presentation.slide_width - left:
+                width = self.presentation.slide_width - left - Inches(0.1)
+            
+            # Make sure caption is not off the bottom of the slide
+            if top + Inches(0.75) > slide_height:
+                top = slide_height - Inches(0.8)
+            
+            # Print debug info
+            print(f"Adding caption on slide {slide_idx+1} at position: left={left}, top={top}, width={width}")
+            
+            # Add a text box for the caption
+            textbox = slide.shapes.add_textbox(
+                left=left,
+                top=top,
+                width=width,
+                height=Inches(0.75)  # Increased height for better visibility
+            )
+            
+            # Add text to the textbox
+            text_frame = textbox.text_frame
+            text_frame.word_wrap = True
+            text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            text_frame.margin_bottom = Inches(0.05)
+            text_frame.margin_left = Inches(0.05)
+            text_frame.margin_right = Inches(0.05)
+            text_frame.margin_top = Inches(0.05)
+            
+            # Use HTML-like formatting to truncate the caption if it's too long
+            if len(caption_text) > 200:
+                caption_text = caption_text[:197] + "..."
+            
+            # Add the slide number to help with identification
+            caption_with_slide = f"[Slide {slide_idx+1}] {caption_text}"
+            
+            # Add paragraph with the caption (with careful font handling)
+            p = text_frame.paragraphs[0]
+            
+            # Clear any existing runs
+            try:
+                while len(p.runs) > 0:
+                    p._p.remove(p.runs[0]._r)
+            except:
+                # If that fails, try to clear the text
+                if p.text:
+                    p.text = ""
+            
+            # Add new run with text
+            run = p.add_run()
+            run.text = caption_with_slide
+            
+            # Style the caption - make it centered and more visible
+            # Set these properties carefully to avoid object reference errors
+            p.alignment = 1  # Center alignment
+            
+            try:
+                run.font.size = Pt(11)  # Smaller font to fit more text
+                run.font.bold = True
+                run.font.italic = False  # Remove italic for better readability
+                run.font.color.rgb = RGBColor(0, 0, 0)  # Black text for maximum contrast
+            except Exception as font_error:
+                print(f"Error setting font properties: {font_error}")
+            
+            # Make the caption stand out more with a visible background and border
+            try:
+                if hasattr(textbox, 'fill'):
+                    textbox.fill.solid()
+                    textbox.fill.fore_color.rgb = RGBColor(255, 255, 200)  # Pale yellow background
+                
+                if hasattr(textbox, 'line'):
+                    textbox.line.color.rgb = RGBColor(100, 100, 100)  # Darker border
+                    textbox.line.width = Pt(1.0)  # Standard border width
+            except Exception as shape_error:
+                print(f"Error setting shape properties: {shape_error}")
+            
+            print(f"Caption successfully created for slide {slide_idx+1}")
+            return textbox
+            
+        except Exception as e:
+            print(f"Error adding caption: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return None
+    
+    def update_font_size(self, shape, new_size):
+        """Update font size for a shape while preserving other formatting"""
+        try:
+            if not shape.has_text_frame:
+                return False
+            
+            has_changes = False
+            
+            # First check if the current font size is already larger than the new size
+            current_min_size = None
+            
+            for paragraph in shape.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    if hasattr(run, "font") and hasattr(run.font, "size") and run.font.size is not None:
+                        # Get font size in points
+                        size_pt = run.font.size.pt
+                        if current_min_size is None or size_pt < current_min_size:
+                            current_min_size = size_pt
+            
+            # If the current minimum size is already greater than or equal to the requested size,
+            # or if we couldn't determine a current size, just return
+            if current_min_size is not None and current_min_size >= new_size:
+                return False
+            
+            # Only update font sizes smaller than the new size
+            for paragraph in shape.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    if run.text.strip() and hasattr(run, "font"):
+                        if hasattr(run.font, "size") and run.font.size is not None:
+                            # Get current size
+                            current_size = run.font.size.pt
+                            if current_size < new_size:
+                                # Only increase font size, never decrease
+                                run.font.size = Pt(new_size)
+                                has_changes = True
+                        else:
+                            # If size isn't set, set it
+                            run.font.size = Pt(new_size)
+                            has_changes = True
+            
+            return has_changes
         except Exception as e:
             print(f"Error updating font size: {e}")
             return False
@@ -319,6 +506,40 @@ class PPTProcessor:
             print(f"Error updating text: {e}")
             return False
     
+    def update_text_contrast(self, shape, make_darker=True):
+        """Update text contrast for a shape - simplified to reduce formatting issues"""
+        try:
+            if not shape.has_text_frame:
+                return False
+            
+            has_changes = False
+            for paragraph in shape.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    if not run.text.strip():
+                        continue
+                    
+                    # Only set color if we can safely do so
+                    try:
+                        if make_darker:
+                            # Just set black text - safest option
+                            rgb = RGBColor(0, 0, 0)
+                        else:
+                            # White text for dark backgrounds
+                            rgb = RGBColor(255, 255, 255)
+                        
+                        # Only update colors that need to be changed
+                        if hasattr(run.font, "color") and run.font.color is not None:
+                            # Create a new RGBColor for safety
+                            run.font.color.rgb = rgb
+                            has_changes = True
+                    except Exception as e:
+                        print(f"Error updating text color: {e}")
+            
+            return has_changes
+        except Exception as e:
+            print(f"Error updating text contrast: {e}")
+            return False
+    
     def save_presentation(self, output_path):
         """Save the modified presentation"""
         try:
@@ -333,4 +554,91 @@ class PPTProcessor:
         try:
             shutil.rmtree(self.temp_dir)
         except Exception as e:
-            print(f"Error cleaning up temporary files: {e}") 
+            print(f"Error cleaning up temporary files: {e}")
+    
+    def add_simple_caption(self, slide_idx, shape, caption_text):
+        """
+        Add a very simple caption below an image as a fallback option
+        that's more likely to succeed than the complex positioning logic
+        """
+        try:
+            # Get the slide
+            slide = self.presentation.slides[slide_idx]
+            
+            # Get image dimensions
+            img_left = shape.left
+            img_width = shape.width
+            
+            # Create a caption at a fixed position below the image
+            # but with a good margin to avoid overlap
+            left = img_left
+            width = img_width
+            
+            # Use a position below the image but not too far below
+            img_bottom = shape.top + shape.height
+            slide_height = self.presentation.slide_height
+            remaining_space = slide_height - img_bottom
+            
+            if remaining_space > Inches(1.5):
+                # Enough space below
+                top = img_bottom + Inches(0.2)
+            else:
+                # Not enough space below, try above
+                top = max(0, shape.top - Inches(0.8))
+            
+            # Make sure the width isn't too wide for the slide
+            if width > self.presentation.slide_width - left:
+                width = self.presentation.slide_width - left - Inches(0.1)
+            
+            # Add a text box for the caption
+            textbox = slide.shapes.add_textbox(
+                left=left,
+                top=top,
+                width=width,
+                height=Inches(0.6)  # Smaller fixed height
+            )
+            
+            # Add text to the textbox with simplified formatting
+            text_frame = textbox.text_frame
+            text_frame.word_wrap = True
+            text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+            text_frame.margin_bottom = Inches(0.05)
+            text_frame.margin_left = Inches(0.05)
+            text_frame.margin_right = Inches(0.05)
+            text_frame.margin_top = Inches(0.05)
+            
+            # Truncate long captions
+            if len(caption_text) > 150:
+                caption_text = caption_text[:147] + "..."
+            
+            # Add slide number for identification
+            caption_with_slide = f"[Slide {slide_idx+1}] {caption_text}"
+            
+            # Add text directly to the paragraph rather than using runs
+            # which can sometimes cause formatting issues
+            p = text_frame.paragraphs[0]
+            p.text = caption_with_slide
+            p.alignment = 1  # Center alignment
+            
+            # Apply direct formatting to all runs
+            for run in p.runs:
+                try:
+                    run.font.size = Pt(11)
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(0, 0, 0)
+                except Exception as e:
+                    print(f"Error formatting caption: {e}")
+            
+            # Add a simple yellow background
+            try:
+                if hasattr(textbox, 'fill'):
+                    textbox.fill.solid()
+                    textbox.fill.fore_color.rgb = RGBColor(255, 255, 150)
+            except Exception as e:
+                print(f"Error setting fill: {e}")
+            
+            return textbox
+            
+        except Exception as e:
+            print(f"Error adding simple caption: {e}")
+            return None 

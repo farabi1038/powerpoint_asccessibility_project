@@ -169,10 +169,10 @@ else:
                 display_analysis_results(before_score, wcag_report)
                 
                 # Display enhancement options
-                generate_alt_text = display_enhancement_options()
+                generate_alt_text, fix_font_size, improve_contrast, simplify_text = display_enhancement_options()
                 
                 # Handle enhancement
-                display_enhance_button_and_process(generate_alt_text)
+                display_enhance_button_and_process(generate_alt_text, fix_font_size, improve_contrast, simplify_text)
     
     # If already analyzed, show results
     elif st.session_state.analyzed:
@@ -180,10 +180,10 @@ else:
         display_analysis_results(st.session_state.before_score, st.session_state.wcag_report)
         
         # Display enhancement options
-        generate_alt_text = display_enhancement_options()
+        generate_alt_text, fix_font_size, improve_contrast, simplify_text = display_enhancement_options()
         
         # Handle enhancement
-        display_enhance_button_and_process(generate_alt_text)
+        display_enhance_button_and_process(generate_alt_text, fix_font_size, improve_contrast, simplify_text)
 
 # Show info message if needed
 if not st.session_state.analyzed and not st.session_state.get('enhance_button_pressed', False):

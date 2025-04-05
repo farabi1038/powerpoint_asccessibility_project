@@ -290,6 +290,14 @@ def display_enhancement_options():
         """, unsafe_allow_html=True)
         generate_alt_text = st.checkbox("Generate Alt Text for Images", value=True)
         
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Font Accessibility</h4>
+            <p style="color: #555; font-size: 0.9rem;">Increase font sizes to ensure readability for all users, including those with visual impairments.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        fix_font_size = st.checkbox("Fix Small Font Sizes", value=True)
+        
         # Display warning if Ollama is not installed or running
         try:
             from src.alt_text_generator import AltTextGenerator
@@ -312,6 +320,23 @@ def display_enhancement_options():
                     """)
         except Exception as e:
             st.error(f"⚠️ Ollama integration error: {str(e)}")
+    
+    with col2:
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Color Contrast</h4>
+            <p style="color: #555; font-size: 0.9rem;">Improve text-to-background contrast to meet WCAG standards for better readability.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        improve_contrast = st.checkbox("Fix Color Contrast Issues", value=True)
+        
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Text Simplification</h4>
+            <p style="color: #555; font-size: 0.9rem;">Simplify complex language to improve readability and comprehension using AI assistance.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        simplify_text = st.checkbox("Simplify Complex Text", value=True)
         
         # Add this to the enhancement options
         with st.expander("Advanced Options"):
@@ -322,10 +347,10 @@ def display_enhancement_options():
             
             # Store in session state
             st.session_state['use_local_only'] = use_local_only
-        
-    return generate_alt_text
+    
+    return generate_alt_text, fix_font_size, improve_contrast, simplify_text
 
-def display_enhance_button_and_process(generate_alt_text):
+def display_enhance_button_and_process(generate_alt_text, fix_font_size=True, improve_contrast=True, simplify_text=True):
     """Display the enhance button and handle the enhancement process"""
     from src.enhancement import enhance_presentation_simple
     
@@ -346,7 +371,7 @@ def display_enhance_button_and_process(generate_alt_text):
                     # Call enhancement function with explicit parameter list
                     after_score = enhance_presentation_simple(
                         st.session_state.ppt_processor, 
-                        [generate_alt_text, True, True, True]
+                        [generate_alt_text, fix_font_size, improve_contrast, simplify_text]
                     )
                     
                     # Check if after_score is not None before proceeding
