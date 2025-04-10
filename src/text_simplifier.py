@@ -13,6 +13,80 @@ class TextSimplifier:
         self.model_name = model_name
         self.api_url = api_url
     
+    def is_text_complex(self, text):
+        """Determine if text is complex and needs simplification"""
+        if not text or len(text) < 15:
+            return False
+            
+        # Check complexity based on word length and sentence length
+        words = text.split()
+        if len(words) < 15:  # Short texts aren't complex
+            return False
+            
+        # Calculate average word length
+        avg_word_length = sum(len(word) for word in words) / len(words)
+        
+        # Calculate sentence length
+        sentences = re.split(r'[.!?]+', text)
+        avg_sentence_length = len(words) / max(1, len([s for s in sentences if s.strip()]))
+        
+        # Text is complex if average word length is high or sentences are long
+        return (avg_word_length > 6) or (avg_sentence_length > 20)
+    
+    def basic_simplify(self, text):
+        """Perform basic text simplification without using API"""
+        if not text or len(text) < 15:
+            return text
+            
+        # Replace complex words with simpler alternatives
+        replacements = {
+            "utilize": "use",
+            "implementation": "use",
+            "facilitate": "help",
+            "consequently": "so",
+            "subsequently": "then",
+            "additionally": "also",
+            "furthermore": "also",
+            "demonstrate": "show",
+            "modification": "change",
+            "sufficient": "enough",
+            "requirement": "need",
+            "prioritize": "focus on",
+            "fundamental": "basic",
+            "endeavor": "try"
+        }
+        
+        result = text
+        for complex_word, simple_word in replacements.items():
+            result = re.sub(r'\b' + complex_word + r'\b', simple_word, result, flags=re.IGNORECASE)
+            
+        # Split very long sentences
+        sentences = re.split(r'([.!?])', text)
+        simplified_sentences = []
+        
+        for i in range(0, len(sentences), 2):
+            if i+1 < len(sentences):
+                sentence = sentences[i] + sentences[i+1]
+            else:
+                sentence = sentences[i]
+                
+            # If sentence is very long, try to split it
+            if len(sentence.split()) > 25:
+                # Split on conjunctions or commas
+                parts = re.split(r',\s*|\s+and\s+|\s+but\s+|\s+or\s+|\s+so\s+|\s+because\s+', sentence)
+                parts = [p for p in parts if p.strip()]
+                
+                if len(parts) > 1:
+                    # Recombine with proper punctuation
+                    sentence = ". ".join(p.strip().capitalize() for p in parts if p.strip())
+            
+            if sentence.strip():
+                simplified_sentences.append(sentence)
+                
+        result = " ".join(simplified_sentences)
+        
+        return result.strip()
+        
     def simplify_text(self, text, max_retries=2):
         """Simplify complex text for better accessibility"""
         if not text or len(text) < 10:

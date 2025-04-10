@@ -1,7 +1,8 @@
 """
 PowerPoint Processing Module
 
-This module handles the extraction and modification of PowerPoint files.
+This module handles the extraction and modification of PowerPoint files,
+with distinct components for different extraction tasks.
 """
 
 import os
@@ -30,6 +31,7 @@ class PPTProcessor:
         self._extract_content()
         return self.presentation
     
+    # EXTRACTION MODULE 1: Image Format Conversion
     def _convert_wmf_to_png(self, image_data, slide_idx, shape_idx):
         """Convert WMF/EMF to PNG format using various methods"""
         # First, save the WMF data
@@ -107,6 +109,7 @@ class PPTProcessor:
             # If all methods fail, return None
             return None
     
+    # EXTRACTION MODULE 2: Content Extraction Master Function
     def _extract_content(self):
         """Extract content from the presentation"""
         self.image_shapes = []
@@ -116,120 +119,148 @@ class PPTProcessor:
             for shape_idx, shape in enumerate(slide.shapes):
                 # Process text in the shape
                 if shape.has_text_frame:
-                    text_frame = shape.text_frame
-                    text = ""
-                    font_size = None
-                    
-                    for paragraph in text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            text += run.text
-                            if run.font.size:
-                                # Convert from EMU to points
-                                size_pt = run.font.size.pt
-                                font_size = size_pt if font_size is None else min(font_size, size_pt)
-                    
-                    self.text_shapes.append({
-                        "slide_num": slide_idx,
-                        "shape": shape,
-                        "text": text,
-                        "font_size": font_size
-                    })
+                    self._extract_text_content(slide_idx, shape)
                 
                 # Extract images
                 if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                    try:
-                        image_data = shape.image.blob
-                        
-                        # Properly extract alt text - check multiple ways
-                        alt_text = ""
-                        
-                        # Method 1: Direct alt_text property
-                        if hasattr(shape, 'alt_text') and hasattr(shape.alt_text, 'text'):
-                            alt_text = shape.alt_text.text
-                        
-                        # Method 2: XML way
-                        if not alt_text and hasattr(shape, '_element'):
-                            try:
-                                cNvPr_element = shape._element.xpath('.//p:cNvPr')
-                                if cNvPr_element and cNvPr_element[0].get('descr'):
-                                    alt_text = cNvPr_element[0].get('descr')
-                            except:
-                                pass
-                        
-                        # Debug
-                        print(f"Extracted alt text for slide {slide_idx+1}: '{alt_text}'")
-                        
-                        # Get file extension based on image content
-                        image_type = self._get_image_type(image_data)
-                        
-                        if image_type == "wmf" or image_type == "emf":
-                            # Handle Windows Metafile format
-                            converted_path = self._convert_wmf_to_png(image_data, slide_idx, shape_idx)
-                            if converted_path:
-                                self.image_shapes.append({
-                                    "slide_num": slide_idx,
-                                    "shape_idx": shape_idx,
-                                    "shape": shape,
-                                    "image_path": converted_path,
-                                    "alt_text": alt_text,
-                                    "converted_from_wmf": True
-                                })
-                            else:
-                                # If conversion failed, add placeholder with information
-                                self.image_shapes.append({
-                                    "slide_num": slide_idx,
-                                    "shape_idx": shape_idx,
-                                    "shape": shape,
-                                    "image_path": None,
-                                    "alt_text": alt_text,
-                                    "converted_from_wmf": False,
-                                    "warning": f"Unsupported image format: WMF file on slide {slide_idx+1}, shape {shape_idx+1}"
-                                })
-                                print(f"Warning: Unsupported image format on slide {slide_idx+1}, shape {shape_idx+1}: cannot find loader for this WMF file")
-                        else:
-                            # Handle regular image formats
-                            try:
-                                # Try to open the image
-                                image = Image.open(io.BytesIO(image_data))
-                                
-                                # Save the image to a temporary file
-                                ext = "." + (image.format.lower() if image.format else "png")
-                                img_path = os.path.join(self.temp_dir, f"slide_{slide_idx}_shape_{shape_idx}{ext}")
-                                image.save(img_path)
-                                
-                                self.image_shapes.append({
-                                    "slide_num": slide_idx,
-                                    "shape_idx": shape_idx,
-                                    "shape": shape,
-                                    "image_path": img_path,
-                                    "alt_text": alt_text
-                                })
-                            except OSError as e:
-                                # Check if "WMF" is in the error - indicates unsupported format
-                                if "WMF" in str(e).upper():
-                                    # Instead of raising an error, set a warning flag and include shape_idx
-                                    self.image_shapes.append({
-                                        "slide_num": slide_idx,
-                                        "shape_idx": shape_idx,
-                                        "shape": shape,
-                                        "image_path": None,
-                                        "alt_text": alt_text,
-                                        "warning": "WMF file skipped - PIL cannot load"
-                                    })
-                                else:
-                                    # Some other error - re-raise
-                                    raise e
-                    except Exception as e:
-                        print(f"Error extracting image data on slide {slide_idx+1}, shape {shape_idx+1}: {e}")
-                        self.image_shapes.append({
-                            "slide_num": slide_idx,
-                            "shape_idx": shape_idx,
-                            "shape": shape,
-                            "image_path": None,
-                            "alt_text": "",
-                            "warning": f"Error extracting image on slide {slide_idx+1}, shape {shape_idx+1}"
-                        })
+                    self._extract_image_content(slide_idx, shape_idx, shape)
     
+    # EXTRACTION MODULE 3: Text Content Extraction
+    def _extract_text_content(self, slide_idx, shape):
+        """Extract text content from shapes with text frames"""
+        text_frame = shape.text_frame
+        text = ""
+        font_size = None
+        
+        for paragraph in text_frame.paragraphs:
+            for run in paragraph.runs:
+                text += run.text
+                if run.font.size:
+                    # Convert from EMU to points
+                    size_pt = run.font.size.pt
+                    font_size = size_pt if font_size is None else min(font_size, size_pt)
+        
+        self.text_shapes.append({
+            "slide_num": slide_idx,
+            "shape": shape,
+            "text": text,
+            "font_size": font_size
+        })
+    
+    # EXTRACTION MODULE 4: Image Content Extraction
+    def _extract_image_content(self, slide_idx, shape_idx, shape):
+        """Extract image content from picture shapes"""
+        try:
+            image_data = shape.image.blob
+            
+            # Extract alt text using multiple methods
+            alt_text = self._extract_alt_text(shape)
+            
+            # Debug
+            print(f"Extracted alt text for slide {slide_idx+1}: '{alt_text}'")
+            
+            # Get file extension based on image content
+            image_type = self._get_image_type(image_data)
+            
+            if image_type == "wmf" or image_type == "emf":
+                # Handle Windows Metafile format
+                self._handle_wmf_image(image_data, slide_idx, shape_idx, shape, alt_text)
+            else:
+                # Handle regular image formats
+                self._handle_regular_image(image_data, slide_idx, shape_idx, shape, alt_text)
+        except Exception as e:
+            print(f"Error extracting image data on slide {slide_idx+1}, shape {shape_idx+1}: {e}")
+            self.image_shapes.append({
+                "slide_num": slide_idx,
+                "shape_idx": shape_idx,
+                "shape": shape,
+                "image_path": None,
+                "alt_text": "",
+                "warning": f"Error extracting image on slide {slide_idx+1}, shape {shape_idx+1}"
+            })
+    
+    # EXTRACTION MODULE 5: Alt Text Extraction
+    def _extract_alt_text(self, shape):
+        """Extract alt text from a shape using multiple methods"""
+        alt_text = ""
+        
+        # Method 1: Direct alt_text property
+        if hasattr(shape, 'alt_text') and shape.alt_text and hasattr(shape.alt_text, 'text'):
+            alt_text = shape.alt_text.text
+        
+        # Method 2: XML way
+        if not alt_text and hasattr(shape, '_element'):
+            try:
+                cNvPr_element = shape._element.xpath('.//p:cNvPr')
+                if cNvPr_element and cNvPr_element[0].get('descr'):
+                    alt_text = cNvPr_element[0].get('descr')
+            except:
+                pass
+                
+        return alt_text
+    
+    # EXTRACTION MODULE 6: WMF Image Handling
+    def _handle_wmf_image(self, image_data, slide_idx, shape_idx, shape, alt_text):
+        """Handle Windows Metafile format images"""
+        converted_path = self._convert_wmf_to_png(image_data, slide_idx, shape_idx)
+        if converted_path:
+            self.image_shapes.append({
+                "slide_num": slide_idx,
+                "shape_idx": shape_idx,
+                "shape": shape,
+                "image_path": converted_path,
+                "alt_text": alt_text,
+                "converted_from_wmf": True
+            })
+        else:
+            # If conversion failed, add placeholder with information
+            self.image_shapes.append({
+                "slide_num": slide_idx,
+                "shape_idx": shape_idx,
+                "shape": shape,
+                "image_path": None,
+                "alt_text": alt_text,
+                "converted_from_wmf": False,
+                "warning": f"Unsupported image format: WMF file on slide {slide_idx+1}, shape {shape_idx+1}"
+            })
+            print(f"Warning: Unsupported image format on slide {slide_idx+1}, shape {shape_idx+1}: cannot find loader for this WMF file")
+    
+    # EXTRACTION MODULE 7: Regular Image Handling
+    def _handle_regular_image(self, image_data, slide_idx, shape_idx, shape, alt_text):
+        """Handle regular image formats"""
+        try:
+            # Try to open the image
+            image = Image.open(io.BytesIO(image_data))
+            
+            # Save the image to a temporary file
+            ext = "." + (image.format.lower() if image.format else "png")
+            img_path = os.path.join(self.temp_dir, f"slide_{slide_idx}_shape_{shape_idx}{ext}")
+            image.save(img_path)
+            
+            self.image_shapes.append({
+                "slide_num": slide_idx,
+                "shape_idx": shape_idx,
+                "shape": shape,
+                "image_path": img_path,
+                "alt_text": alt_text
+            })
+        except OSError as e:
+            # Check if "WMF" is in the error - indicates unsupported format
+            if "WMF" in str(e).upper():
+                # Instead of raising an error, set a warning flag and include shape_idx
+                self.image_shapes.append({
+                    "slide_num": slide_idx,
+                    "shape_idx": shape_idx,
+                    "shape": shape,
+                    "image_path": None,
+                    "alt_text": alt_text,
+                    "warning": "WMF file skipped - PIL cannot load"
+                })
+            else:
+                # Some other error - re-raise
+                raise e
+    
+    # EXTRACTION MODULE 8: Image Type Detection
     def _get_image_type(self, image_data):
         """Determine image type from binary data"""
         try:
@@ -250,395 +281,294 @@ class PPTProcessor:
             elif image_data[:4] == b'\x01\x00\x00\x00':  # EMF header
                 return "emf"
             else:
-                # Try to guess from image headers
+                # Try using PIL's Image.open
                 try:
                     image = Image.open(io.BytesIO(image_data))
-                    return image.format.lower()
+                    return image.format.lower() if image.format else "unknown"
                 except:
                     return "unknown"
     
+    # EXTRACTION MODULE 9: Font Size Detection
     def _get_shape_font_size(self, shape):
         """Get the font size of a shape"""
-        try:
-            if shape.has_text_frame:
-                for paragraph in shape.text_frame.paragraphs:
-                    for run in paragraph.runs:
-                        if run.font.size:
-                            return run.font.size.pt
-        except:
-            pass
-        return None
-    
+        if not shape.has_text_frame:
+            return None
+        
+        font_size = None
+        for paragraph in shape.text_frame.paragraphs:
+            for run in paragraph.runs:
+                if run.font.size:
+                    size_pt = run.font.size.pt
+                    font_size = size_pt if font_size is None else min(font_size, size_pt)
+        
+        return font_size
+                
+    # ENHANCEMENT MODULE 1: Alt Text Update
     def update_alt_text(self, slide_idx, shape, alt_text):
-        """Update the alt text for a shape"""
+        """Update alt text for an image shape"""
         try:
-            # Get the non-visual properties
-            nvprops = shape.element.xpath('.//p:cNvPr')
-            if nvprops:
-                # Set the description attribute
-                nvprops[0].set('descr', alt_text)
+            # Method 1: Direct property method
+            if hasattr(shape, 'alt_text'):
+                shape.alt_text.text = alt_text
                 return True
+            
+            # Method 2: XML way
+            if hasattr(shape, '_element'):
+                cNvPr_element = shape._element.xpath('.//p:cNvPr')
+                if cNvPr_element:
+                    cNvPr_element[0].set('descr', alt_text)
+                    return True
+            
             return False
         except Exception as e:
             print(f"Error updating alt text: {e}")
             return False
     
+    # ENHANCEMENT MODULE 2: Caption Addition
     def add_visible_caption(self, slide_idx, shape, caption_text, is_single_image=False):
-        """
-        Add a visible caption text box below an image
-        
-        Args:
-            slide_idx: Index of the slide
-            shape: The image shape object
-            caption_text: Text for the caption
-            is_single_image: Whether this is the only image on the slide
-        """
+        """Add a visible caption to an image shape that's consistently placed below the image"""
         try:
-            # Get the slide
             slide = self.presentation.slides[slide_idx]
             
-            # Special handling for single images on a slide - ensure they get proper captions
-            if is_single_image:
-                print(f"Using single image placement strategy for slide {slide_idx+1}")
-                
-                # For single images, always try to put the caption directly below first
-                left = shape.left
-                top = shape.top + shape.height + Inches(0.05)
-                width = shape.width
-                
-                # Handle edge case where image is at bottom of slide
-                slide_height = self.presentation.slide_height
-                if top + Inches(0.75) > slide_height:
-                    # If too close to bottom, put caption above the image
-                    top = max(0, shape.top - Inches(0.8))
-                    
-                    # If also too close to top, put beside it
-                    if top < Inches(0.1):
-                        if shape.left > self.presentation.slide_width / 2:
-                            # Image on right, put caption on left
-                            left = max(0, shape.left - shape.width - Inches(0.1))
-                        else:
-                            # Image on left, put caption on right
-                            left = min(self.presentation.slide_width - shape.width, 
-                                     shape.left + shape.width + Inches(0.1))
-                        top = shape.top
-            else:
-                # For multiple images, use the original smart placement logic
-                # Calculate available space below the image
-                slide_height = self.presentation.slide_height
-                available_space = slide_height - (shape.top + shape.height)
-                
-                # Check if there's enough space below the image
-                if available_space < Inches(0.85):  # Need at least this much space
-                    # Put caption beside the image instead of below it if there's not enough space
-                    if shape.left > self.presentation.slide_width / 2:
-                        # Image is on the right side of the slide, put caption on the left
-                        left = max(0, shape.left - shape.width - Inches(0.1))
-                        top = shape.top
-                        width = shape.width
-                        if left < 0:  # Not enough space on left either
-                            # Put it above the image as a last resort
-                            left = shape.left
-                            top = max(0, shape.top - Inches(0.85))
-                            width = shape.width
-                    else:
-                        # Image is on the left side, put caption on the right
-                        left = shape.left + shape.width + Inches(0.1)
-                        top = shape.top
-                        width = min(shape.width, self.presentation.slide_width - left - Inches(0.1))
-                        if left + width > self.presentation.slide_width:  # Not enough space on right
-                            # Put it above the image as a last resort
-                            left = shape.left
-                            top = max(0, shape.top - Inches(0.85))
-                            width = shape.width
-                else:
-                    # Enough space below the image, place it there
-                    left = shape.left
-                    top = shape.top + shape.height + Inches(0.05)
-                    width = shape.width
+            # Get the position and size of the image
+            left = shape.left
+            top = shape.top
+            width = shape.width
+            height = shape.height
             
-            # Ensure the width is reasonable and not off the slide
-            if width < Inches(1):
-                width = Inches(1)
-            if width > self.presentation.slide_width - left:
-                width = self.presentation.slide_width - left - Inches(0.1)
+            # Calculate position for the text box (always directly below the image)
+            # Always use the image's width and position for consistency
+            caption_left = left
+            caption_width = width
             
-            # Make sure caption is not off the bottom of the slide
-            if top + Inches(0.75) > slide_height:
-                top = slide_height - Inches(0.8)
+            # Always place the caption directly below the image with a small gap
+            caption_top = top + height + Inches(0.05)
             
-            # Print debug info
-            print(f"Adding caption on slide {slide_idx+1} at position: left={left}, top={top}, width={width}")
+            # If the caption would go off the slide, adjust the position but keep it below the image
+            slide_height = self.presentation.slide_height
+            if caption_top + Inches(0.4) > slide_height:
+                # Move the caption slightly up but still keep it below the image
+                caption_top = slide_height - Inches(0.45)
             
-            # Add a text box for the caption
+            # Create a textbox shape with a border to make it more visible
             textbox = slide.shapes.add_textbox(
-                left=left,
-                top=top,
-                width=width,
-                height=Inches(0.75)  # Increased height for better visibility
+                caption_left, caption_top, caption_width, Inches(0.4)
             )
             
-            # Add text to the textbox
+            # Add border to make the caption stand out
+            if hasattr(textbox, 'line'):
+                textbox.line.color.rgb = RGBColor(100, 100, 100)  # Gray border
+                textbox.line.width = Pt(1.0)
+            
+            # Add light background to improve readability
+            if hasattr(textbox, 'fill'):
+                textbox.fill.solid()
+                textbox.fill.fore_color.rgb = RGBColor(245, 245, 220)  # Light beige background
+            
+            # Set the text
             text_frame = textbox.text_frame
+            text_frame.clear()
+            
+            # Enable text wrapping
             text_frame.word_wrap = True
+            
+            # Enable auto-size to fit text
             text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            text_frame.margin_bottom = Inches(0.05)
-            text_frame.margin_left = Inches(0.05)
-            text_frame.margin_right = Inches(0.05)
-            text_frame.margin_top = Inches(0.05)
             
-            # Use HTML-like formatting to truncate the caption if it's too long
-            if len(caption_text) > 200:
-                caption_text = caption_text[:197] + "..."
+            # Set vertical alignment
+            text_frame.vertical_anchor = 1  # Middle
             
-            # Add the slide number to help with identification
-            caption_with_slide = f"[Slide {slide_idx+1}] {caption_text}"
-            
-            # Add paragraph with the caption (with careful font handling)
+            # Add paragraph
             p = text_frame.paragraphs[0]
+            p.alignment = 1  # Center
             
-            # Clear any existing runs
-            try:
-                while len(p.runs) > 0:
-                    p._p.remove(p.runs[0]._r)
-            except:
-                # If that fails, try to clear the text
-                if p.text:
-                    p.text = ""
-            
-            # Add new run with text
+            # Add run with the caption text
             run = p.add_run()
-            run.text = caption_with_slide
+            run.text = caption_text
             
-            # Style the caption - make it centered and more visible
-            # Set these properties carefully to avoid object reference errors
-            p.alignment = 1  # Center alignment
+            # Format the text to be visually distinct but very readable
+            font = run.font
+            font.name = "Calibri"
+            font.size = Pt(14)  # Larger font for better readability
+            font.bold = True  # Make it bold for emphasis
+            font.italic = False  # No italic for better readability
+            font.color.rgb = RGBColor(0, 0, 0)  # Black text for maximum contrast
             
-            try:
-                run.font.size = Pt(11)  # Smaller font to fit more text
-                run.font.bold = True
-                run.font.italic = False  # Remove italic for better readability
-                run.font.color.rgb = RGBColor(0, 0, 0)  # Black text for maximum contrast
-            except Exception as font_error:
-                print(f"Error setting font properties: {font_error}")
-            
-            # Make the caption stand out more with a visible background and border
-            try:
-                if hasattr(textbox, 'fill'):
-                    textbox.fill.solid()
-                    textbox.fill.fore_color.rgb = RGBColor(255, 255, 200)  # Pale yellow background
-                
-                if hasattr(textbox, 'line'):
-                    textbox.line.color.rgb = RGBColor(100, 100, 100)  # Darker border
-                    textbox.line.width = Pt(1.0)  # Standard border width
-            except Exception as shape_error:
-                print(f"Error setting shape properties: {shape_error}")
-            
-            print(f"Caption successfully created for slide {slide_idx+1}")
+            # Return success
             return textbox
-            
         except Exception as e:
-            print(f"Error adding caption: {e}")
             import traceback
+            print(f"Error adding caption: {e}")
             print(traceback.format_exc())
             return None
     
+    # ENHANCEMENT MODULE 3: Font Size Update
     def update_font_size(self, shape, new_size):
-        """Update font size for a shape while preserving other formatting"""
+        """Update the font size of a shape"""
+        if not shape.has_text_frame:
+            return False
+        
         try:
-            if not shape.has_text_frame:
-                return False
+            text_frame = shape.text_frame
+            changed = False
             
-            has_changes = False
-            
-            # First check if the current font size is already larger than the new size
-            current_min_size = None
-            
-            for paragraph in shape.text_frame.paragraphs:
+            for paragraph in text_frame.paragraphs:
                 for run in paragraph.runs:
-                    if hasattr(run, "font") and hasattr(run.font, "size") and run.font.size is not None:
-                        # Get font size in points
-                        size_pt = run.font.size.pt
-                        if current_min_size is None or size_pt < current_min_size:
-                            current_min_size = size_pt
+                    # Skip if no text
+                    if not run.text.strip():
+                        continue
+                        
+                    # Only increase font size if it's smaller than the new size
+                    current_size = run.font.size.pt if hasattr(run.font, 'size') and run.font.size else None
+                    
+                    if current_size is None:
+                        # If size isn't set, set it to the new size
+                        run.font.size = Pt(new_size)
+                        changed = True
+                    elif current_size < new_size:
+                        # Only increase font size if it's too small
+                        run.font.size = Pt(new_size)
+                        changed = True
+                    # else: keep the existing size if it's already large enough
             
-            # If the current minimum size is already greater than or equal to the requested size,
-            # or if we couldn't determine a current size, just return
-            if current_min_size is not None and current_min_size >= new_size:
-                return False
-            
-            # Only update font sizes smaller than the new size
-            for paragraph in shape.text_frame.paragraphs:
-                for run in paragraph.runs:
-                    if run.text.strip() and hasattr(run, "font"):
-                        if hasattr(run.font, "size") and run.font.size is not None:
-                            # Get current size
-                            current_size = run.font.size.pt
-                            if current_size < new_size:
-                                # Only increase font size, never decrease
-                                run.font.size = Pt(new_size)
-                                has_changes = True
-                        else:
-                            # If size isn't set, set it
-                            run.font.size = Pt(new_size)
-                            has_changes = True
-            
-            return has_changes
+            return changed
         except Exception as e:
             print(f"Error updating font size: {e}")
             return False
     
+    # ENHANCEMENT MODULE 4: Text Content Update
     def update_text(self, shape, new_text):
-        """Update the text in a shape"""
+        """Update the text content of a shape"""
+        if not shape.has_text_frame:
+            return False
+        
         try:
-            if shape.has_text_frame:
-                text_frame = shape.text_frame
-                
-                # Clear existing text
-                p = text_frame.paragraphs[0]
-                p.clear()
-                
-                # Add new text
-                p.add_run().text = new_text
-                
-                return True
+            text_frame = shape.text_frame
+            
+            # If there are no paragraphs, add one
+            if not text_frame.paragraphs:
+                text_frame.text = new_text
+            else:
+                # Otherwise, update the first paragraph
+                paragraph = text_frame.paragraphs[0]
+                paragraph.text = new_text
+            
+            return True
         except Exception as e:
             print(f"Error updating text: {e}")
             return False
     
+    # ENHANCEMENT MODULE 5: Text Contrast Update
     def update_text_contrast(self, shape, make_darker=True):
-        """Update text contrast for a shape - simplified to reduce formatting issues"""
+        """Update the contrast of text for better readability"""
+        if not shape.has_text_frame:
+            return False
+        
         try:
-            if not shape.has_text_frame:
-                return False
+            text_frame = shape.text_frame
+            changed = False
             
-            has_changes = False
-            for paragraph in shape.text_frame.paragraphs:
+            for paragraph in text_frame.paragraphs:
                 for run in paragraph.runs:
-                    if not run.text.strip():
+                    # Skip if font or color is not set
+                    if not hasattr(run, 'font') or not hasattr(run.font, 'color'):
+                        continue
+                        
+                    # Check if color is None or doesn't have rgb property
+                    if not run.font.color or not hasattr(run.font.color, 'rgb'):
+                        continue
+                        
+                    # Handle case where rgb exists but is None
+                    if run.font.color.rgb is None:
                         continue
                     
-                    # Only set color if we can safely do so
                     try:
-                        if make_darker:
-                            # Just set black text - safest option
-                            rgb = RGBColor(0, 0, 0)
-                        else:
-                            # White text for dark backgrounds
-                            rgb = RGBColor(255, 255, 255)
+                        # Get current RGB values - handle different color object types
+                        current_color = run.font.color.rgb
                         
-                        # Only update colors that need to be changed
-                        if hasattr(run.font, "color") and run.font.color is not None:
-                            # Create a new RGBColor for safety
-                            run.font.color.rgb = rgb
-                            has_changes = True
-                    except Exception as e:
-                        print(f"Error updating text color: {e}")
+                        # Check if color has r, g, b attributes
+                        if not all(hasattr(current_color, attr) for attr in ['r', 'g', 'b']):
+                            continue
+                            
+                        r, g, b = current_color.r, current_color.g, current_color.b
+                        
+                        # Calculate luminance
+                        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+                        
+                        if make_darker:
+                            # If it's light, make it dark (for better contrast on light backgrounds)
+                            if luminance > 0.5:
+                                run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+                                changed = True
+                        else:
+                            # If it's dark, make it light (for better contrast on dark backgrounds)
+                            if luminance < 0.5:
+                                run.font.color.rgb = RGBColor(255, 255, 255)  # White
+                                changed = True
+                    except AttributeError:
+                        # Skip this run if any attribute errors occur when accessing color properties
+                        continue
             
-            return has_changes
+            return changed
         except Exception as e:
             print(f"Error updating text contrast: {e}")
             return False
     
+    # UTILITY MODULE 1: Presentation Save
     def save_presentation(self, output_path):
-        """Save the modified presentation"""
-        try:
-            self.presentation.save(output_path)
-            return True
-        except Exception as e:
-            print(f"Error saving presentation: {e}")
-            return False
+        """Save the presentation to a file"""
+        if self.presentation:
+            try:
+                self.presentation.save(output_path)
+                return True
+            except Exception as e:
+                print(f"Error saving presentation: {e}")
+                return False
+        return False
     
+    # UTILITY MODULE 2: Cleanup
     def cleanup(self):
         """Clean up temporary files"""
         try:
             shutil.rmtree(self.temp_dir)
+            return True
         except Exception as e:
-            print(f"Error cleaning up temporary files: {e}")
+            print(f"Error cleaning up: {e}")
+            return False
     
+    # ENHANCEMENT MODULE 6: Simple Caption
     def add_simple_caption(self, slide_idx, shape, caption_text):
-        """
-        Add a very simple caption below an image as a fallback option
-        that's more likely to succeed than the complex positioning logic
-        """
+        """Add a simple caption at the bottom of the slide"""
         try:
-            # Get the slide
             slide = self.presentation.slides[slide_idx]
             
-            # Get image dimensions
-            img_left = shape.left
-            img_width = shape.width
-            
-            # Create a caption at a fixed position below the image
-            # but with a good margin to avoid overlap
-            left = img_left
-            width = img_width
-            
-            # Use a position below the image but not too far below
-            img_bottom = shape.top + shape.height
-            slide_height = self.presentation.slide_height
-            remaining_space = slide_height - img_bottom
-            
-            if remaining_space > Inches(1.5):
-                # Enough space below
-                top = img_bottom + Inches(0.2)
-            else:
-                # Not enough space below, try above
-                top = max(0, shape.top - Inches(0.8))
-            
-            # Make sure the width isn't too wide for the slide
-            if width > self.presentation.slide_width - left:
-                width = self.presentation.slide_width - left - Inches(0.1)
-            
-            # Add a text box for the caption
+            # Create a textbox at the bottom of the slide
             textbox = slide.shapes.add_textbox(
-                left=left,
-                top=top,
-                width=width,
-                height=Inches(0.6)  # Smaller fixed height
+                Inches(0.5), 
+                self.presentation.slide_height - Inches(1.0),
+                self.presentation.slide_width - Inches(1.0), 
+                Inches(0.75)
             )
             
-            # Add text to the textbox with simplified formatting
+            # Set the text
             text_frame = textbox.text_frame
+            text_frame.clear()
             text_frame.word_wrap = True
-            text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            text_frame.margin_bottom = Inches(0.05)
-            text_frame.margin_left = Inches(0.05)
-            text_frame.margin_right = Inches(0.05)
-            text_frame.margin_top = Inches(0.05)
             
-            # Truncate long captions
-            if len(caption_text) > 150:
-                caption_text = caption_text[:147] + "..."
-            
-            # Add slide number for identification
-            caption_with_slide = f"[Slide {slide_idx+1}] {caption_text}"
-            
-            # Add text directly to the paragraph rather than using runs
-            # which can sometimes cause formatting issues
             p = text_frame.paragraphs[0]
-            p.text = caption_with_slide
-            p.alignment = 1  # Center alignment
+            p.alignment = 1  # Center
             
-            # Apply direct formatting to all runs
-            for run in p.runs:
-                try:
-                    run.font.size = Pt(11)
-                    run.font.bold = True
-                    run.font.color.rgb = RGBColor(0, 0, 0)
-                except Exception as e:
-                    print(f"Error formatting caption: {e}")
+            run = p.add_run()
+            run.text = caption_text
             
-            # Add a simple yellow background
-            try:
-                if hasattr(textbox, 'fill'):
-                    textbox.fill.solid()
-                    textbox.fill.fore_color.rgb = RGBColor(255, 255, 150)
-            except Exception as e:
-                print(f"Error setting fill: {e}")
+            # Format
+            font = run.font
+            font.name = "Calibri"
+            font.size = Pt(14)
+            font.bold = True
+            font.color.rgb = RGBColor(0, 0, 0)  # Black
             
             return textbox
-            
         except Exception as e:
             print(f"Error adding simple caption: {e}")
             return None 
