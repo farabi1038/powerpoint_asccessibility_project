@@ -1,0 +1,234 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{geometry}
+
+\geometry{a4paper, margin=1in}
+
+\title{PowerPoint Accessibility Enhancer: Technical Report}
+\author{Project Team}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Executive Summary}
+The PowerPoint Accessibility Enhancer is a Streamlit-based web application designed to improve the accessibility of PowerPoint presentations. It targets creators who want to make their content more accessible to individuals with disabilities, addressing key aspects of accessibility including image descriptions, text readability, color contrast, and overall WCAG compliance.
+
+\section{Project Overview}
+\subsection{Motivation}
+Accessibility is a crucial aspect of content creation that is often overlooked. Many PowerPoint presentations lack proper accessibility features, making them difficult or impossible to use for people with disabilities. This project aims to provide an automated solution to enhance accessibility in existing presentations.
+
+\subsection{Objectives}
+\begin{itemize}
+    \item Develop a tool that analyzes PowerPoint presentations for accessibility issues
+    \item Implement AI-powered solutions to automatically enhance accessibility
+    \item Provide comprehensive reports on accessibility compliance
+    \item Make the tool user-friendly and accessible to non-technical users
+\end{itemize}
+
+\section{Technical Implementation}
+
+\subsection{Architecture}
+The application follows a modular architecture with the following components:
+\begin{itemize}
+    \item \textbf{Frontend}: Streamlit web interface for user interaction
+    \item \textbf{Processing Engine}: PowerPoint file parsing and modification
+    \item \textbf{Analysis Module}: Evaluates presentations against accessibility standards
+    \item \textbf{Enhancement Module}: Applies fixes to identified issues
+    \item \textbf{AI Integration}: Connects with Ollama to provide AI-powered enhancements
+    \item \textbf{Reporting}: Generates comprehensive accessibility reports
+\end{itemize}
+
+\subsection{Key Technologies}
+\begin{itemize}
+    \item \textbf{Streamlit}: Web application framework for the user interface
+    \item \textbf{Python}: Primary programming language (v3.10+)
+    \item \textbf{python-pptx}: Library for PowerPoint file manipulation
+    \item \textbf{Ollama}: Local AI model server (v0.1.2)
+    \item \textbf{LLaVA}: Large Language and Vision Assistant model for image understanding
+    \item \textbf{PIL/Pillow}: Image processing for contrast analysis and format conversions
+    \item \textbf{WCAG Contrast Ratio}: Library for accessibility contrast calculations
+    \item \textbf{Docker}: Containerization for easy deployment
+    \item \textbf{PyTorch}: Deep learning framework supporting the AI components
+\end{itemize}
+
+\section{Feature Implementation Details}
+
+\subsection{Accessibility Analysis}
+The application analyzes PowerPoint presentations against WCAG (Web Content Accessibility Guidelines) standards. This includes:
+\begin{itemize}
+    \item Text size and readability evaluation (minimum 18pt recommended size)
+    \item Color contrast analysis (minimum 4.5:1 for normal text, 3:1 for large text)
+    \item Alt text presence verification
+    \item Slide structure assessment
+    \item Reading order validation
+\end{itemize}
+
+The scoring module provides numerical assessments of accessibility compliance, with weighted categories including text contrast, font size, alt text presence, and text complexity. The overall accessibility score helps users track improvements as they enhance their presentations.
+
+\subsection{AI-powered Alt Text Generation}
+One of the key innovations is the automatic generation of descriptive alt text for images:
+\begin{itemize}
+    \item Integration with LLaVA model via Ollama
+    \item Image extraction from PowerPoint slides
+    \item Context-aware description generation
+    \item Fallback mechanisms when AI services are unavailable
+    \item Support for varying detail levels (concise vs. detailed descriptions)
+    \item Image preprocessing including format conversion and resizing
+\end{itemize}
+
+The implementation extracts images from presentations, processes them through the LLaVA model, and reintegrates the generated descriptions back into the PowerPoint file. The system handles image format conversions, including automatically converting RGBA images to RGB with white backgrounds for better compatibility with the AI model. The alt text generator includes retry mechanisms and error handling to ensure reliability.
+
+\subsection{Font Size Optimization}
+The application detects text elements that may be difficult to read due to small font sizes:
+\begin{itemize}
+    \item Analysis of text elements across all slides
+    \item Identification of text below recommended size thresholds (18pt minimum)
+    \item Automatic adjustment of font sizes to meet accessibility standards
+    \item Preservation of relative size relationships between text elements
+\end{itemize}
+
+\subsection{Color Contrast Enhancement}
+Poor color contrast can make text difficult to read for users with visual impairments:
+\begin{itemize}
+    \item Calculation of contrast ratios between text and background using WCAG standards
+    \item Identification of contrast issues based on WCAG guidelines (4.5:1 ratio for normal text)
+    \item Automatic adjustment of text or background colors to improve contrast
+    \item Intelligent contrast fixing that chooses whether to darken text or lighten backgrounds
+    \item Preservation of brand colors and design aesthetics where possible
+\end{itemize}
+
+The system uses an adaptive approach to contrast enhancement, analyzing text luminance to determine whether to adjust text or background colors for optimal readability while maintaining visual appeal.
+
+\subsection{Text Simplification}
+Complex language can be a barrier to comprehension for many users:
+\begin{itemize}
+    \item Analysis of text complexity using readability metrics
+    \item Identification of overly complex sentences and terminology
+    \item Suggestion of simplified alternatives
+    \item Optional automatic implementation of simplifications
+\end{itemize}
+
+\subsection{Comprehensive Reports}
+The application generates detailed reports on accessibility issues:
+\begin{itemize}
+    \item Slide-by-slide analysis
+    \item Issue categorization and severity rating
+    \item Before/after comparisons
+    \item Exportable HTML format for accessibility documentation
+\end{itemize}
+
+\section{Implementation Challenges}
+
+\subsection{PowerPoint Format Complexity}
+The PowerPoint file format presents significant challenges:
+\begin{itemize}
+    \item Complex object model with nested elements
+    \item Variations between PowerPoint versions
+    \item Limited documentation for some advanced features
+    \item Special handling required for embedded objects and media
+\end{itemize}
+
+\subsection{AI Integration Challenges}
+Integrating AI capabilities presented several challenges:
+\begin{itemize}
+    \item Balancing model quality with performance
+    \item Managing dependencies on external services
+    \item Handling unsupported image formats (WMF/EMF)
+    \item Ensuring context-appropriate descriptions
+    \item Cross-platform compatibility for Ollama integration
+    \item Automated Ollama service management
+\end{itemize}
+
+The system includes sophisticated service management to detect if Ollama is running, start it if necessary, and check for the availability of the LLaVA model. This includes special handling for Windows environments and WSL (Windows Subsystem for Linux) detection.
+
+\subsection{Performance Optimization}
+Processing large presentations required optimization:
+\begin{itemize}
+    \item Parallelization of image processing
+    \item Efficient memory management for large files
+    \item Progress tracking and cancellation options
+    \item Caching strategies for intermediate results
+    \item Image resizing to maximum dimensions of 512px before AI processing
+    \item Limiting token generation for faster processing
+\end{itemize}
+
+\section{Testing and Validation}
+
+\subsection{Accessibility Testing}
+The application was tested with:
+\begin{itemize}
+    \item Screen reader compatibility testing
+    \item Color contrast analyzers
+    \item Automated accessibility checkers
+    \item User testing with individuals with disabilities
+\end{itemize}
+
+\subsection{Performance Testing}
+Performance was validated with:
+\begin{itemize}
+    \item Large presentation files (100+ slides)
+    \item Presentations with numerous images
+    \item Complex layouts and embedded content
+    \item Various PowerPoint versions (2010 through 2021)
+\end{itemize}
+
+\section{Deployment and Distribution}
+
+\subsection{Deployment Options}
+The application can be deployed in several ways:
+\begin{itemize}
+    \item Local installation (Windows, macOS, Linux)
+    \item Docker containerization with multi-container setup
+    \item Potential cloud-based SaaS deployment
+\end{itemize}
+
+The Docker implementation uses a multi-container approach with docker-compose, separating the Ollama service from the Streamlit application for better scalability and resource management.
+
+\subsection{Dependencies Management}
+Dependencies are managed through:
+\begin{itemize}
+    \item Requirements.txt for Python dependencies (including version pinning)
+    \item Launcher scripts for environment setup (Windows and Unix variants)
+    \item Docker containerization for consistent environments
+    \item Special handling for platform-specific dependencies (e.g., python-magic-bin for Windows)
+\end{itemize}
+
+The launcher scripts provide a seamless experience across operating systems, automating the process of starting Ollama, pulling necessary models, and launching the Streamlit application.
+
+\section{Cross-Platform Compatibility}
+The application is designed to work across multiple platforms:
+\begin{itemize}
+    \item Windows-specific launcher (launcher.bat) with CMD command execution
+    \item Unix/Linux/Mac launcher (launcher.sh) with bash scripting
+    \item WSL (Windows Subsystem for Linux) detection and special networking setup
+    \item Docker containerization for platform-agnostic deployment
+    \item Platform-specific dependency handling in requirements.txt
+\end{itemize}
+
+\section{Future Enhancements}
+
+\subsection{Planned Improvements}
+Future work includes:
+\begin{itemize}
+    \item Support for additional presentation formats (Google Slides, Keynote)
+    \item Advanced layout optimization for screen readers
+    \item Integration with additional AI models for enhanced capabilities
+    \item Batch processing for multiple presentations
+    \item API endpoints for integration with other systems
+    \item Enhanced detection of slide structures and reading order
+    \item Support for additional WCAG compliance criteria
+\end{itemize}
+
+\section{Conclusion}
+The PowerPoint Accessibility Enhancer provides a powerful, automated solution for improving presentation accessibility. By combining AI capabilities with accessibility expertise, it enables content creators to produce materials that are accessible to all users, including those with disabilities. The modular architecture allows for ongoing enhancements and adaptations to evolving accessibility standards.
+
+The implementation balances ease of use with powerful features, making accessibility improvements accessible to non-technical users. The cross-platform compatibility ensures that the tool can be used across diverse environments, and the containerized deployment option provides a path to easy distribution and scalability.
+
+\end{document} 
