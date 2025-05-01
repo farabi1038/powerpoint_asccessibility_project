@@ -171,53 +171,136 @@ def display_upload_placeholder():
     """, unsafe_allow_html=True)
 
 def display_analysis_results(before_score, wcag_report):
-    """Display the analysis results"""
-    st.markdown("<h3 style='color: #2E7D32;'>Analysis Results</h3>", unsafe_allow_html=True)
+    """Display accessibility analysis results"""
     
-    # Display overall score
-    score = before_score["overall_score"]
+    if not before_score or not wcag_report:
+        st.error("No analysis results available.")
+        return
     
-    # Progress bar with color based on score
-    score_color = "#4CAF50" if score >= 80 else "#FFC107" if score >= 60 else "#F44336"
+    # Display the overall score prominently
+    score_color = "#4CAF50" if before_score["overall_score"] >= 80 else "#FF9800" if before_score["overall_score"] >= 60 else "#F44336"
     
-    st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 2rem;">
-        <h3 style="margin-bottom: 0.5rem;">Overall Accessibility Score</h3>
-        <div style="font-size: 5rem; font-weight: 700; color: {score_color};">{score}</div>
-        <p style="color: #555; margin-top: 0;">{before_score['summary']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Create accessibility score section with improved visuals
+    st.markdown(
+        f"""
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0;">Accessibility Score: <span style="color: {score_color};">{before_score["overall_score"]}/100</span></h2>
+            <p style="color: #555; margin-top: 0;">Your presentation has been analyzed for accessibility compliance.</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
     
-    # Display WCAG compliance chart
-    from src.utils import create_wcag_compliance_chart
-    compliance_chart = create_wcag_compliance_chart(wcag_report)
+    # Create columns for different scores
+    col1, col2, col3, col4 = st.columns(4)
     
-    col1, col2 = st.columns([2, 1])
-    
+    # Display category scores
     with col1:
-        st.markdown("<h3 style='color: #2E7D32;'>WCAG 2.1 Compliance</h3>", unsafe_allow_html=True)
+        display_category_score("Alt Text", before_score["category_scores"]["alt_text"])
         
-        # Create a color-coded table for WCAG criteria with explicit black text
-        for criteria, details in wcag_report.items():
-            color = "#E8F5E9" if details["compliance"] == "Pass" else "#FFEBEE"
-            border_color = "#43A047" if details["compliance"] == "Pass" else "#E53935"
-            text_status = details["compliance"]
-            
-            st.markdown(
-                f"""
-                <div style="padding: 15px; background-color: {color}; border-left: 4px solid {border_color}; border-radius: 4px; margin-bottom: 10px; color: #000000;">
-                    <strong style="color: #000000;">{criteria}</strong>: <span style="color: #000000;">{text_status}</span><br>
-                    <small style="color: #000000;">{details["description"]}</small>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-    
     with col2:
-        st.markdown("<h3 style='color: #2E7D32;'>Compliance Summary</h3>", unsafe_allow_html=True)
-        st.image(f"data:image/png;base64,{compliance_chart}", use_column_width=True)
+        display_category_score("Font Size", before_score["category_scores"]["font_size"])
+        
+    with col3:
+        display_category_score("Contrast", before_score["category_scores"]["contrast"])
+        
+    with col4:
+        display_category_score("Text Complexity", before_score["category_scores"]["text_complexity"])
     
-    display_issues_section(wcag_report)
+    # Show summary statistics from the WCAG report
+    st.markdown("### Presentation Summary")
+    
+    if "summary" in wcag_report:
+        summary = wcag_report["summary"]
+        st.markdown(
+            f"""
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+                <div style="flex: 1; min-width: 200px; background-color: #f1f8e9; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #2E7D32;">Slides</h4>
+                    <p style="font-size: 20px; font-weight: bold;">{summary.get("total_slides", 0)}</p>
+                </div>
+                <div style="flex: 1; min-width: 200px; background-color: #e1f5fe; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #0277BD;">Images</h4>
+                    <p style="font-size: 20px; font-weight: bold;">{summary.get("total_images", 0)}</p>
+                    <p style="font-size: 14px; color: #555;">{summary.get("images_missing_alt_text", 0)} missing alt text</p>
+                </div>
+                <div style="flex: 1; min-width: 200px; background-color: #fff3e0; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #E65100;">Font Issues</h4>
+                    <p style="font-size: 20px; font-weight: bold;">{summary.get("slides_with_small_fonts", 0)} slides</p>
+                    <p style="font-size: 14px; color: #555;">with small fonts</p>
+                </div>
+                <div style="flex: 1; min-width: 200px; background-color: #e8eaf6; padding: 15px; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #303F9F;">Text Complexity</h4>
+                    <p style="font-size: 20px; font-weight: bold;">{summary.get("slides_with_complex_text", 0)} slides</p>
+                    <p style="font-size: 14px; color: #555;">with complex text</p>
+                </div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+    
+    # Display detailed issues
+    with st.expander("View Detailed Accessibility Issues"):
+        if "issues" in wcag_report:
+            issues = wcag_report["issues"]
+            
+            # Alt text issues
+            if issues.get("alt_text"):
+                st.markdown("#### Alternative Text Issues")
+                for issue in issues["alt_text"]:
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #ffebee; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Slide {issue['slide_num'] + 1}:</strong> {issue['issue']}
+                            <br/><small>{issue.get('description', '')}</small>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+            
+            # Font size issues
+            if issues.get("font_size"):
+                st.markdown("#### Font Size Issues")
+                for issue in issues["font_size"]:
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #fff8e1; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Slide {issue['slide_num'] + 1}:</strong> {issue['issue']}
+                            <br/><small>{issue.get('recommendation', '')}</small>
+                            <br/><small>Text: "{issue.get('text', '')}"</small>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+            
+            # Contrast issues
+            if issues.get("contrast"):
+                st.markdown("#### Contrast Issues")
+                for issue in issues["contrast"]:
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Slide {issue['slide_num'] + 1}:</strong> {issue['issue']}
+                            <br/><small>{issue.get('description', '')}</small>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+            
+            # Text complexity issues
+            if issues.get("text_complexity"):
+                st.markdown("#### Text Complexity Issues")
+                for issue in issues["text_complexity"]:
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>Slide {issue['slide_num'] + 1}:</strong> {issue['issue']}
+                            <br/><small>{issue.get('suggestion', '')}</small>
+                            <br/><small>Text: "{issue.get('text', '')}"</small>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
 
 def display_issues_section(wcag_report):
     """Display the identified issues section"""
@@ -290,6 +373,14 @@ def display_enhancement_options():
         """, unsafe_allow_html=True)
         generate_alt_text = st.checkbox("Generate Alt Text for Images", value=True)
         
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Font Accessibility</h4>
+            <p style="color: #555; font-size: 0.9rem;">Increase font sizes to ensure readability for all users, including those with visual impairments.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        fix_font_size = st.checkbox("Fix Small Font Sizes", value=True)
+        
         # Display warning if Ollama is not installed or running
         try:
             from src.alt_text_generator import AltTextGenerator
@@ -312,6 +403,23 @@ def display_enhancement_options():
                     """)
         except Exception as e:
             st.error(f"⚠️ Ollama integration error: {str(e)}")
+    
+    with col2:
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Color Contrast</h4>
+            <p style="color: #555; font-size: 0.9rem;">Improve text-to-background contrast to meet WCAG standards for better readability.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        improve_contrast = st.checkbox("Fix Color Contrast Issues", value=True)
+        
+        st.markdown("""
+        <div style="background-color: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <h4 style="margin-top: 0; color: #1565C0;">Text Simplification</h4>
+            <p style="color: #555; font-size: 0.9rem;">Simplify complex language to improve readability and comprehension using AI assistance.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        simplify_text = st.checkbox("Simplify Complex Text", value=True)
         
         # Add this to the enhancement options
         with st.expander("Advanced Options"):
@@ -322,10 +430,10 @@ def display_enhancement_options():
             
             # Store in session state
             st.session_state['use_local_only'] = use_local_only
-        
-    return generate_alt_text
+    
+    return generate_alt_text, fix_font_size, improve_contrast, simplify_text
 
-def display_enhance_button_and_process(generate_alt_text):
+def display_enhance_button_and_process(generate_alt_text, fix_font_size=True, improve_contrast=True, simplify_text=True):
     """Display the enhance button and handle the enhancement process"""
     from src.enhancement import enhance_presentation_simple
     
@@ -343,10 +451,17 @@ def display_enhance_button_and_process(generate_alt_text):
         if st.session_state.enhance_button_pressed:
             try:
                 with st.spinner("⚙️ Enhancing presentation..."):
-                    # Call enhancement function with explicit parameter list
+                    # Ensure the ppt_processor is in the session state
+                    if 'ppt_processor' not in st.session_state or st.session_state.ppt_processor is None:
+                        # If not, create a new one
+                        from src.ppt_processor import PPTProcessor
+                        st.session_state.ppt_processor = PPTProcessor()
+                        st.session_state.ppt_processor.load_presentation(st.session_state.input_path)
+                    
+                    # Call enhancement function with explicit parameter list and processor
                     after_score = enhance_presentation_simple(
                         st.session_state.ppt_processor, 
-                        [generate_alt_text, True, True, True]
+                        [generate_alt_text, fix_font_size, improve_contrast, simplify_text]
                     )
                     
                     # Check if after_score is not None before proceeding
@@ -361,7 +476,13 @@ def display_enhance_button_and_process(generate_alt_text):
                         # Show improvement details
                         display_enhancement_results(after_score)
                     else:
-                        st.error("Enhancement process failed to produce a valid score. Please try again.")
+                        # Enhancement returned None, meaning it failed
+                        st.error("Enhancement process failed. Please check the error messages above.")
+                        
+                        # Add retry button
+                        if st.button("Try again", key="retry_btn"):
+                            st.session_state.enhance_button_pressed = False
+                            st.experimental_rerun()
                     
             except Exception as e:
                 st.error(f"Error enhancing presentation: {str(e)}")
@@ -372,85 +493,121 @@ def display_enhancement_results(after_score):
     """Display the enhancement results with before and after comparison"""
     st.markdown("<h3 style='color: #2E7D32;'>Enhancement Results</h3>", unsafe_allow_html=True)
     
+    # Make sure the required session state variables exist
+    if 'before_score' not in st.session_state:
+        st.error("Missing 'before_score' in session state. Cannot display comparison.")
+        return
+    
+    # Check if after_score argument is valid, if not try to get from session state
+    if after_score is None and 'after_score' in st.session_state:
+        after_score = st.session_state.after_score
+    
+    # If still None, show error and return
+    if after_score is None:
+        st.error("Enhancement results are not available. The enhancement process may have failed.")
+        return
+        
+    before_score = st.session_state.before_score
+    
     # Create columns for before and after scores
     col1, col2 = st.columns(2)
     
-    with col1:
-        st.markdown("<h4>Before Enhancement</h4>", unsafe_allow_html=True)
-        before_score = st.session_state.before_score
+    try:
+        # Safely get overall scores with defaults if missing
+        before_overall = before_score.get("overall_score", 0)
+        after_overall = after_score.get("overall_score", 0)
         
-        # Create a gauge chart for the before score
-        before_fig = create_gauge_chart(
-            before_score["overall_score"], 
-            "Overall Accessibility Score", 
-            color='#FFA726'
-        )
-        st.plotly_chart(before_fig, use_container_width=True)
-        
-        # Display category scores
-        st.markdown("#### Category Scores")
-        cat_scores = before_score["category_scores"]
-        for cat, score in cat_scores.items():
-            st.markdown(f"**{cat.replace('_', ' ').title()}:** {score}/100")
-    
-    with col2:
-        st.markdown("<h4>After Enhancement</h4>", unsafe_allow_html=True)
-        
-        # Create a gauge chart for the after score
-        after_fig = create_gauge_chart(
-            after_score["overall_score"], 
-            "Overall Accessibility Score", 
-            color='#66BB6A'
-        )
-        st.plotly_chart(after_fig, use_container_width=True)
-        
-        # Display category scores
-        st.markdown("#### Category Scores")
-        cat_scores = after_score["category_scores"]
-        for cat, score in cat_scores.items():
-            # Calculate improvement and display with color
-            before_cat_score = before_score["category_scores"][cat]
-            improvement = score - before_cat_score
-            if improvement > 0:
-                st.markdown(f"**{cat.replace('_', ' ').title()}:** {score}/100 <span style='color:green'>(+{improvement})</span>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"**{cat.replace('_', ' ').title()}:** {score}/100")
-    
-    # Display overall improvement
-    improvement = after_score["overall_score"] - before_score["overall_score"]
-    if improvement > 0:
-        st.success(f"Overall improvement: +{improvement} points")
-    else:
-        st.info("No significant score improvement detected.")
-    
-    # Download buttons
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        with open(st.session_state.enhanced_file_path, "rb") as file:
-            st.download_button(
-                label="📥 Download Enhanced Presentation",
-                data=file,
-                file_name="enhanced_presentation.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                key="download_ppt_btn",
-                use_container_width=True
+        with col1:
+            st.markdown("<h4>Before Enhancement</h4>", unsafe_allow_html=True)
+            
+            # Create a gauge chart for the before score
+            before_fig = create_gauge_chart(
+                before_overall, 
+                "Overall Accessibility Score", 
+                color='#FFA726'
             )
-    
-    with col2:
-        st.download_button(
-            label="📄 Download Accessibility Report",
-            data=st.session_state.report_html,
-            file_name="accessibility_report.html",
-            mime="text/html",
-            key="download_report_btn",
-            use_container_width=True
-        )
-    
-    # Reset button
-    if st.button("Start Over", key="reset_btn"):
-        st.session_state.enhance_button_pressed = False
-        st.experimental_rerun()
+            st.plotly_chart(before_fig, use_container_width=True)
+            
+            # Display category scores
+            st.markdown("#### Category Scores")
+            before_cat_scores = before_score.get("category_scores", {})
+            for cat in ["alt_text", "font_size", "contrast", "text_complexity"]:
+                score = before_cat_scores.get(cat, 0)
+                st.markdown(f"**{cat.replace('_', ' ').title()}:** {score}/100")
+        
+        with col2:
+            st.markdown("<h4>After Enhancement</h4>", unsafe_allow_html=True)
+            
+            # Create a gauge chart for the after score
+            after_fig = create_gauge_chart(
+                after_overall, 
+                "Overall Accessibility Score", 
+                color='#66BB6A'
+            )
+            st.plotly_chart(after_fig, use_container_width=True)
+            
+            # Display category scores
+            st.markdown("#### Category Scores")
+            after_cat_scores = after_score.get("category_scores", {})
+            for cat in ["alt_text", "font_size", "contrast", "text_complexity"]:
+                after_score_val = after_cat_scores.get(cat, 0)
+                before_score_val = before_cat_scores.get(cat, 0)
+                improvement = after_score_val - before_score_val
+                
+                # Calculate improvement and display with color
+                if improvement > 0:
+                    st.markdown(f"**{cat.replace('_', ' ').title()}:** {after_score_val}/100 <span style='color:green'>(+{improvement})</span>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"**{cat.replace('_', ' ').title()}:** {after_score_val}/100")
+        
+        # Display overall improvement
+        improvement = after_overall - before_overall
+        if improvement > 0:
+            st.success(f"Overall improvement: +{improvement} points")
+        else:
+            st.info("No significant score improvement detected.")
+            
+        # Only show download buttons if we have the enhanced file
+        if 'enhanced_file_path' in st.session_state and os.path.exists(st.session_state.enhanced_file_path):
+            # Download buttons
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                with open(st.session_state.enhanced_file_path, "rb") as file:
+                    st.download_button(
+                        label="📥 Download Enhanced Presentation",
+                        data=file,
+                        file_name="enhanced_presentation.pptx",
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        key="download_ppt_btn",
+                        use_container_width=True
+                    )
+            
+            with col2:
+                if 'report_html' in st.session_state and st.session_state.report_html:
+                    st.download_button(
+                        label="📄 Download Accessibility Report",
+                        data=st.session_state.report_html,
+                        file_name="accessibility_report.html",
+                        mime="text/html",
+                        key="download_report_btn",
+                        use_container_width=True
+                    )
+                else:
+                    st.info("HTML report not available for download.")
+        
+        # Reset button
+        if st.button("Start Over", key="reset_btn"):
+            # Clear all relevant session state values
+            for key in ['enhance_button_pressed', 'after_score', 'report_html']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.experimental_rerun()
+            
+    except Exception as e:
+        import traceback
+        st.error(f"Error displaying enhancement results: {str(e)}")
+        st.error(traceback.format_exc())
 
 def create_gauge_chart(score, title, color='#2E7D32'):
     """Create a gauge chart for the score"""
@@ -484,3 +641,28 @@ def create_gauge_chart(score, title, color='#2E7D32'):
     )
     
     return fig 
+
+def display_category_score(category, score):
+    """Display a category score with appropriate styling"""
+    
+    # Determine color based on score
+    if score >= 80:
+        color = "#4CAF50"  # Green
+        bg_color = "#E8F5E9"
+    elif score >= 60:
+        color = "#FF9800"  # Orange
+        bg_color = "#FFF3E0"
+    else:
+        color = "#F44336"  # Red
+        bg_color = "#FFEBEE"
+    
+    # Display score with styled container
+    st.markdown(
+        f"""
+        <div style="background-color: {bg_color}; padding: 15px; border-radius: 8px; text-align: center;">
+            <h4 style="margin-top: 0; margin-bottom: 5px;">{category}</h4>
+            <div style="font-size: 24px; font-weight: bold; color: {color};">{score}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    ) 

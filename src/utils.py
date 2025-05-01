@@ -54,86 +54,125 @@ def create_comparison_chart(before_score, after_score, categories):
     
     return image_base64
 
-def generate_report_html(before_score, after_score):
-    """Generate an HTML report comparing before and after scores"""
-    # Category names for better display
-    category_names = {
-        "alt_text": "Alt Text",
-        "font_size": "Font Size",
-        "contrast": "Contrast",
-        "text_complexity": "Text Complexity"
-    }
+def generate_report_html(before_score, after_score, before_wcag_report, after_wcag_report, wmf_count=0):
+    """
+    Generate an HTML report comparing before and after accessibility improvements
     
-    # Create comparison chart
-    chart_base64 = create_comparison_chart(
-        before_score, 
-        after_score, 
-        list(category_names.keys())
-    )
+    Args:
+        before_score (dict): Score report before enhancement
+        after_score (dict): Score report after enhancement
+        before_wcag_report (dict): WCAG report before enhancement
+        after_wcag_report (dict): WCAG report after enhancement
+        wmf_count (int): Number of WMF images found
+        
+    Returns:
+        str: HTML report content
+    """
+    # Calculate statistics
+    alt_text_count = after_score["category_scores"]["alt_text"] - before_score["category_scores"]["alt_text"]
+    font_size_improvement = after_score["category_scores"]["font_size"] - before_score["category_scores"]["font_size"]
+    contrast_improvement = after_score["category_scores"]["contrast"] - before_score["category_scores"]["contrast"]
+    text_simpler = after_score["category_scores"]["text_complexity"] - before_score["category_scores"]["text_complexity"]
     
-    # Generate issue tables
-    issue_html = ""
+    # Convert negative improvements to zero (in case something got worse)
+    alt_text_count = max(0, alt_text_count)
+    font_size_improvement = max(0, font_size_improvement)
+    contrast_improvement = max(0, contrast_improvement)
+    text_simpler = max(0, text_simpler)
     
-    for category, display_name in category_names.items():
-        if before_score['issues'][category]:
-            issue_html += f"<h3>{display_name} Issues</h3>"
-            issue_html += "<ul>"
-            for issue in before_score['issues'][category]:
-                issue_html += f"<li>{issue}</li>"
-            issue_html += "</ul>"
-    
-    # Create the full HTML report
-    html = f"""
+    # Create comprehensive HTML report
+    html_report = f"""
     <html>
     <head>
+        <title>Accessibility Enhancement Report</title>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            .report-container {{ max-width: 800px; margin: 0 auto; }}
-            .score-container {{ display: flex; justify-content: space-between; margin-bottom: 20px; }}
-            .score-box {{ text-align: center; padding: 20px; border-radius: 5px; width: 45%; }}
-            .before-score {{ background-color: #ffe6e6; }}
-            .after-score {{ background-color: #e6ffe6; }}
-            .score-value {{ font-size: 48px; font-weight: bold; margin: 10px 0; }}
-            .chart {{ text-align: center; margin: 30px 0; }}
-            .improvements {{ margin: 20px 0; }}
-            table {{ width: 100%; border-collapse: collapse; }}
-            th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }}
-            th {{ background-color: #f2f2f2; }}
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            h1 {{ color: #2E7D32; }}
+            h2 {{ color: #1565C0; }}
+            .section {{ background: #E8F5E9; padding: 15px; border-radius: 8px; margin: 10px 0; }}
+            .warning {{ background: #FFF3E0; padding: 15px; border-radius: 8px; margin: 10px 0; }}
+            .comparison {{ display: flex; justify-content: space-between; }}
+            .score-card {{ flex: 1; margin: 10px; padding: 15px; border-radius: 8px; background: #f5f5f5; }}
+            .improvement {{ color: green; font-weight: bold; }}
+            .card {{ padding: 15px; margin: 10px 0; border-radius: 8px; }}
+            .green-card {{ background-color: #E8F5E9; }}
+            .blue-card {{ background-color: #E3F2FD; }}
+            .yellow-card {{ background-color: #FFF8E1; }}
+            .purple-card {{ background-color: #F3E5F5; }}
         </style>
     </head>
     <body>
-        <div class="report-container">
-            <h1>PowerPoint Accessibility Report</h1>
+        <h1>PowerPoint Accessibility Report</h1>
+        
+        <div class="section">
+            <h2>Summary</h2>
+            <p>Your presentation has been enhanced with several accessibility improvements:</p>
             
-            <div class="score-container">
-                <div class="score-box before-score">
-                    <h2>Before Enhancement</h2>
-                    <div class="score-value">{before_score['overall_score']}</div>
-                    <p>{before_score['summary']}</p>
+            <div class="comparison">
+                <div class="score-card">
+                    <h3>Before</h3>
+                    <p><strong>Overall Score:</strong> {before_score["overall_score"]}/100</p>
                 </div>
-                
-                <div class="score-box after-score">
-                    <h2>After Enhancement</h2>
-                    <div class="score-value">{after_score['overall_score']}</div>
-                    <p>{after_score['summary']}</p>
+                <div class="score-card" style="background-color: #E8F5E9;">
+                    <h3>After</h3>
+                    <p><strong>Overall Score:</strong> {after_score["overall_score"]}/100</p>
+                    <p class="improvement">Improvement: +{after_score["overall_score"] - before_score["overall_score"]} points</p>
                 </div>
-            </div>
-            
-            <div class="chart">
-                <h2>Score Comparison</h2>
-                <img src="data:image/png;base64,{chart_base64}" alt="Accessibility Score Comparison Chart">
-            </div>
-            
-            <div class="improvements">
-                <h2>Identified Issues</h2>
-                {issue_html}
             </div>
         </div>
+        
+        <h2>Accessibility Improvements</h2>
+        
+        <div class="card green-card">
+            <h3>Image Accessibility</h3>
+            <p><strong>Before:</strong> {before_score["category_scores"]["alt_text"]}/100</p>
+            <p><strong>After:</strong> {after_score["category_scores"]["alt_text"]}/100</p>
+            <p>Added or improved alt text for images to assist screen reader users.</p>
+        </div>
+        
+        <div class="card blue-card">
+            <h3>Font Size Readability</h3>
+            <p><strong>Before:</strong> {before_score["category_scores"]["font_size"]}/100</p>
+            <p><strong>After:</strong> {after_score["category_scores"]["font_size"]}/100</p>
+            <p>Increased font sizes to improve readability for those with visual impairments.</p>
+        </div>
+        
+        <div class="card yellow-card">
+            <h3>Contrast Enhancement</h3>
+            <p><strong>Before:</strong> {before_score["category_scores"]["contrast"]}/100</p>
+            <p><strong>After:</strong> {after_score["category_scores"]["contrast"]}/100</p>
+            <p>Improved text contrast to make content more readable.</p>
+        </div>
+        
+        <div class="card purple-card">
+            <h3>Text Simplification</h3>
+            <p><strong>Before:</strong> {before_score["category_scores"]["text_complexity"]}/100</p>
+            <p><strong>After:</strong> {after_score["category_scores"]["text_complexity"]}/100</p>
+            <p>Simplified complex text to be more understandable.</p>
+        </div>
+        
+        {f'<div class="warning"><h3>Special Image Formats</h3><p>Found {wmf_count} WMF/EMF image(s) that require special handling. These formats have limited accessibility support in PowerPoint.</p></div>' if wmf_count > 0 else ''}
+        
+        <div class="section">
+            <h2>Next Steps</h2>
+            <p>To further improve your presentation's accessibility:</p>
+            <ul>
+                <li>Review the alt text generated for images and make adjustments as needed</li>
+                <li>Consider adding closed captions if your presentation includes audio or video</li>
+                <li>Use built-in slide layouts rather than free-floating text boxes</li>
+                <li>Ensure logical reading order for all slide elements</li>
+                <li>Test with a screen reader to verify accessibility</li>
+            </ul>
+        </div>
+        
+        <p style="margin-top: 30px; color: #666; font-size: 0.8em;">
+            Generated by PowerPoint Accessibility Enhancer
+        </p>
     </body>
     </html>
     """
     
-    return html 
+    return html_report
 
 def create_wcag_compliance_chart(wcag_report):
     """Create a chart showing WCAG compliance status"""
