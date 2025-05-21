@@ -1,0 +1,58 @@
+\begin{thebibliography}{10}
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+\expandafter\ifx\csname href\endcsname\relax
+  \def\href#1#2{#2} \def\path#1{#1}\fi
+
+\bibitem{who}
+{World Health Organization},
+  \href{https://www.who.int/publications/i/item/9789241564182}{World report on
+  disability}, World Health Organization (2011).
+\newline\urlprefix\url{https://www.who.int/publications/i/item/9789241564182}
+
+\bibitem{accessibility-barriers}
+J.~Lazar, D.~F. Goldstein, A.~Taylor, Digital accessibility: Challenges and
+  opportunities, IEEE Internet Computing 19~(2) (2015) 88--91.
+
+\bibitem{ms-accessibility}
+{Microsoft Corporation},
+  \href{https://support.microsoft.com/en-us/office/accessibility-support-for-office-file-formats-0d18d2b9-b84b-4518-a134-1bc20c5e002a}{Accessibility
+  support for office file formats} (2023).
+\newline\urlprefix\url{https://support.microsoft.com/en-us/office/accessibility-support-for-office-file-formats-0d18d2b9-b84b-4518-a134-1bc20c5e002a}
+
+\bibitem{streamlit}
+{Streamlit Inc.}, \href{https://streamlit.io/}{Streamlit: A faster way to build
+  and share data apps} (2023).
+\newline\urlprefix\url{https://streamlit.io/}
+
+\bibitem{python-pptx}
+S.~Canny, \href{https://python-pptx.readthedocs.io/}{python-pptx: Python
+  library for creating and updating powerpoint (.pptx) files} (2020).
+\newline\urlprefix\url{https://python-pptx.readthedocs.io/}
+
+\bibitem{wcag}
+{W3C}, \href{https://www.w3.org/TR/WCAG21/}{Web content accessibility
+  guidelines (wcag) 2.1} (2018).
+\newline\urlprefix\url{https://www.w3.org/TR/WCAG21/}
+
+\bibitem{ollama}
+{Ollama}, \href{https://ollama.ai/}{Ollama: Get up and running with large
+  language models locally} (2023).
+\newline\urlprefix\url{https://ollama.ai/}
+
+\bibitem{llava}
+H.~Liu, C.~Li, Q.~Wu, Y.~J. Lee, Visual instruction tuning, arXiv preprint
+  arXiv:2304.08485 (2023).
+
+\bibitem{udl}
+A.~Meyer, D.~H. Rose, D.~Gordon, Universal design for learning: Theory and
+  practice (2014).
+
+\bibitem{section508}
+{U.S. General Services Administration},
+  \href{https://www.section508.gov/}{Section 508 of the rehabilitation act}
+  (2023).
+\newline\urlprefix\url{https://www.section508.gov/}
+
+\end{thebibliography}
